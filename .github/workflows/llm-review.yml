@@ -1,0 +1,132 @@
+name: LLM Diff Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Only one review per PR at a time
+concurrency:
+  group: llm-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Need history to diff against base
+
+      - name: Compute diff
+        id: diff
+        run: |
+          # Diff only — never send full files (token control)
+          # Skip lockfiles, generated code, snapshots
+          git diff origin/${{ github.base_ref }}...HEAD \
+            -- . \
+            ':!*.lock' ':!uv.lock' ':!package-lock.json' \
+            ':!*.snap' ':!**/migrations/**' ':!**/__generated__/**' \
+            > /tmp/diff.patch || true
+
+          LINES=$(wc -l < /tmp/diff.patch)
+          echo "diff_lines=$LINES" >> $GITHUB_OUTPUT
+
+          # Hard ceiling: 800 lines of diff. Bigger = skip with a note.
+          if [ "$LINES" -gt 800 ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip large diff
+        if: steps.diff.outputs.skip == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🤖 **LLM review skipped** — diff is ${{ steps.diff.outputs.diff_lines }} lines (>800). Split this PR into smaller chunks per CLAUDE.md §5.'
+            })
+
+      - name: Call Claude (Haiku) for review
+        if: steps.diff.outputs.skip == 'false'
+        id: review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DIFF=$(cat /tmp/diff.patch)
+
+          # Inline review prompt — tuned for diff-only context
+          PROMPT=$(cat <<'EOF'
+You are a senior AI engineer reviewing a pull request diff.
+You see ONLY the diff, not the full files. Don't ask for more context — work with what's there.
+
+Focus ONLY on these (in priority order):
+1. Bugs that will fail at runtime (None deref, off-by-one, missed await, wrong types)
+2. Violations of project invariants from CLAUDE.md:
+   - Workflow determinism (no datetime.now, no random, no I/O in workflows)
+   - Strict typing (no Any, no untyped Pydantic, no `as unknown as X`)
+   - MCP boundary (no direct SerpAPI calls outside maps_bridge)
+   - DSPy signatures (no raw prompt strings for extraction/qualification)
+3. Missing tests for new logic
+4. Security issues (logged secrets, SSRF, SQL injection, missing input validation)
+
+DO NOT comment on:
+- Style/formatting (linter handles it)
+- Naming preferences
+- Hypothetical improvements
+- Praise
+
+Output format:
+- Start with one line: `**Verdict:** APPROVE | NEEDS CHANGES | BLOCKING ISSUE`
+- Then bullet list of findings. Each bullet: `**file:line** — issue. Suggested fix.`
+- Max 8 bullets. If you can't find anything real, output "No blocking issues found." and stop.
+
+Diff:
+```
+EOF
+)
+          # Build JSON payload safely
+          jq -n \
+            --arg model "claude-haiku-4-5" \
+            --arg prompt "$PROMPT" \
+            --arg diff "$DIFF" \
+            '{
+              model: $model,
+              max_tokens: 1500,
+              messages: [
+                { role: "user", content: ($prompt + $diff + "\n```") }
+              ]
+            }' > /tmp/payload.json
+
+          RESPONSE=$(curl -sS https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d @/tmp/payload.json)
+
+          # Extract text content
+          echo "$RESPONSE" | jq -r '.content[0].text' > /tmp/review.md
+
+          # Token usage for monitoring
+          echo "$RESPONSE" | jq -r '"Input tokens: \(.usage.input_tokens), Output: \(.usage.output_tokens)"'
+
+      - name: Post review comment
+        if: steps.diff.outputs.skip == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('/tmp/review.md', 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 **Claude Haiku review** _(diff-only, ~${{ steps.diff.outputs.diff_lines }} lines)_\n\n${body}\n\n---\n_Not a replacement for human review. Just a fast first pass._`
+            });
