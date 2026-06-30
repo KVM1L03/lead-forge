@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.n/bin:$(PATH)
 
-.PHONY: bootstrap install dev dev-api dev-frontend lint format typecheck test up-build down clean
+.PHONY: bootstrap install dev dev-api dev-frontend lint format typecheck test up-build up down logs logs-temporal logs-langfuse clean
 
 bootstrap: install
 	@[ -f .env ] || cp .env.example .env
@@ -35,8 +35,20 @@ test:
 up-build:
 	docker compose up --build -d
 
+up:
+	docker compose up -d
+
 down:
 	docker compose down
+
+logs:
+	docker compose logs -f --tail=100
+
+logs-temporal:
+	docker compose logs -f temporal temporal-ui
+
+logs-langfuse:
+	docker compose logs -f langfuse langfuse-worker
 
 clean:
 	@echo "not implemented yet"
