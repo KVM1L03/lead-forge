@@ -1,13 +1,13 @@
-"""DSPy-based lead qualification engine.
+"""DSPy-based lead qualification and email generation engine.
 
-Uses dspy.Predict with a typed Signature. The LM is injected per-call via
-dspy.context(lm=...) to avoid the race condition that dspy.configure(lm=...)
-would cause under parallel Temporal activities (CLAUDE.md §11 anti-pattern #1).
+LM is injected per-call via dspy.context(lm=...) to avoid the race condition
+that dspy.configure(lm=...) would cause under parallel Temporal activities
+(CLAUDE.md §11 anti-pattern #1).
 """
 
 import dspy
 
-from shared.schemas import PlaceDetails, QualifierVerdict
+from shared.schemas import GeneratedEmail, PlaceDetails, QualifierVerdict
 
 
 class QualifyLead(dspy.Signature):  # type: ignore[misc]
@@ -30,8 +30,32 @@ class QualifyLead(dspy.Signature):  # type: ignore[misc]
     )
 
 
-# Module-level predictor — stateless; LM is resolved from context at call time.
-_predictor = dspy.Predict(QualifyLead)
+class GenerateEmail(dspy.Signature):  # type: ignore[misc]
+    """Draft a personalized cold outreach email for a qualified lead."""
+
+    outreach_goal: str = dspy.InputField(
+        desc="What kind of leads the user wants, used to frame the email angle"
+    )
+    business: str = dspy.InputField(desc="JSON-serialized PlaceDetails")
+    qualifier_reasoning: str = dspy.InputField(
+        desc="Why this lead was qualified — use to ground personalization"
+    )
+    sender_context: str = dspy.InputField(
+        desc="Who the sender is and their value proposition, derived from user prompt"
+    )
+
+    subject: str = dspy.OutputField(desc="≤80 chars, specific, not spammy")
+    body: str = dspy.OutputField(
+        desc="≤200 words, plain text, no marketing fluff, references the business specifically"
+    )
+    personalization_hooks: list[str] = dspy.OutputField(
+        desc="The 2-3 specific business details you keyed off, e.g. ['4.8-star rating', 'Warsaw location']"
+    )
+
+
+# Module-level predictors — stateless; LM is resolved from context at call time.
+_qualify_predictor = dspy.Predict(QualifyLead)
+_email_predictor = dspy.Predict(GenerateEmail)
 
 
 def qualify_lead(
@@ -46,7 +70,7 @@ def qualify_lead(
     running this function concurrently never share a global LM setting.
     """
     with dspy.context(lm=lm):
-        prediction = _predictor(
+        prediction = _qualify_predictor(
             outreach_goal=outreach_goal,
             business=place.model_dump_json(),
         )
@@ -55,4 +79,32 @@ def qualify_lead(
         score=float(prediction.score),
         reasoning=str(prediction.reasoning),
         icp_fit=dict(prediction.icp_fit),
+    )
+
+
+def generate_email(
+    outreach_goal: str,
+    place: PlaceDetails,
+    qualifier_reasoning: str,
+    sender_context: str,
+    *,
+    lm: dspy.LM,
+) -> GeneratedEmail:
+    """Generate a personalized cold outreach email for a qualified lead.
+
+    ``lm`` is applied via dspy.context per-call so parallel Temporal activities
+    running this function concurrently never share a global LM setting.
+    """
+    with dspy.context(lm=lm):
+        prediction = _email_predictor(
+            outreach_goal=outreach_goal,
+            business=place.model_dump_json(),
+            qualifier_reasoning=qualifier_reasoning,
+            sender_context=sender_context,
+        )
+    return GeneratedEmail(
+        subject=str(prediction.subject),
+        body=str(prediction.body),
+        personalization_hooks=list(prediction.personalization_hooks),
+        model_used=str(lm.model),
     )
