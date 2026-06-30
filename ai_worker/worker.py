@@ -16,6 +16,7 @@ async def main() -> None:
     address = os.getenv("TEMPORAL_ADDRESS", "localhost:7233")
     client = await Client.connect(address)
     logger.info("connected to temporal")
+    # workflows and activities wired in once DSPy/LangGraph modules exist
     async with Worker(client, task_queue=TASK_QUEUE, workflows=[], activities=[]):
         await asyncio.Event().wait()
 
