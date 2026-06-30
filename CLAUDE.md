@@ -122,9 +122,35 @@ Use `mock` providers locally when you don't need real API spend. Switch to live 
 
 ## 8. Workflow rules (how to behave)
 
+### Git: branch → PR → review (default for real work)
+
+**Before writing code**, decide if the task needs a branch. If yes, create it **first** — never commit on `main`.
+
+| Trigger | Branch? | Prefix | Example |
+|---|---|---|---|
+| New feature, endpoint, UI screen, workflow, tool | ✅ | `feat/` | `feat/maps-mcp-search` |
+| Bug fix | ✅ | `fix/` | `fix/temporal-replay-date` |
+| Refactor (behavior unchanged) | ✅ | `refactor/` | `refactor/extract-qualifier` |
+| CI, Docker, Makefile, deps | ✅ | `chore/` or `ci/` | `ci/add-mypy-job` |
+| Docs-only typo, answer a question, read-only exploration | ❌ | — | stay on current branch or don't commit |
+| User explicitly says "commit straight to main" | ❌ | — | only then skip branching |
+
+**Branch names:** lowercase kebab-case, max ~5 words, no issue numbers unless user asks.
+
+**End-of-task checklist** (required when you created a branch):
+
+1. `make lint && make test` — both green
+2. Commit with a clear message (what + why, not file list)
+3. `git push -u origin <branch>`
+4. Open PR to `main` via `gh pr create` — template in `.github/pull_request_template.md` fills automatically
+5. Report PR URL. **Do not merge** — wait for CI (`python`, `frontend`) + human approval
+6. LLM review (`llm-review.yml`) is advisory only; human review is required (`docs/branch-protection.md`)
+
+**Never:** push to `main`, force-push, merge your own PR without explicit user ask, open 600 LOC PRs when 3×200 LOC would work.
+
+### General
+
 - **Plan before writing code** for any change touching >1 file. Use plan mode (`Shift+Tab` twice in Claude Code).
-- **Never push to `main`.** Feature branch + PR even when working solo.
-- **Branch naming** (convention, not enforced by CI): `feature/…`, `fix/…`, `chore/…`. Any name works as long as the PR targets `main`.
 - **PR size:** aim for ≤200–400 LOC per PR. Hard limit: automated LLM review skips diffs >800 lines — split before you hit that ceiling.
 - **Run `make lint` and `make test` before saying "done".** "Done" = lint clean + tests green + the new behavior demonstrated.
 - **Fill the PR template** (`.github/pull_request_template.md`): one-sentence summary, invariants checked, verification checklist.
@@ -141,11 +167,11 @@ Every change merges to `main` through a pull request. Nothing runs on push until
 
 ```bash
 git checkout main && git pull
-git checkout -b feature/my-change
+git checkout -b feat/my-change
 # ... edit ...
 make lint && make test
 git add -A && git commit -m "describe the why"
-git push -u origin feature/my-change
+git push -u origin feat/my-change
 gh pr create --base main   # or via GitHub UI
 ```
 
