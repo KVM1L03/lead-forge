@@ -1,0 +1,20 @@
+{
+  "status_code": 200,
+  "body": {
+    "search_metadata": {"status": "Success"},
+    "place_results": {
+      "title": "Warsaw Dental Center",
+      "address": "ul. Example 1, Warszawa",
+      "type": ["Dentist", "Cosmetic dentist", "Periodontist"],
+      "rating": 4.8,
+      "reviews": 312,
+      "phone": "+48 22 111 2222",
+      "website": "https://example-dental.pl",
+      "gps_coordinates": {"latitude": 52.23, "longitude": 21.01},
+      "hours": [
+        {"tuesday": "9 AM-9 PM"},
+        {"monday": "9 AM-9 PM"}
+      ]
+    }
+  }
+}
