@@ -6,9 +6,9 @@ generator client {
   output   = "../app/generated/prisma"
 }
 
+// Connection URL is in prisma.config.ts (Prisma 7 — url no longer lives here).
 datasource db {
   provider = "postgresql"
-  url      = env("APP_DATABASE_URL")
   schemas  = ["app"]
 }
 
