@@ -7,9 +7,12 @@ Each node is a pure function over LeadProcessingState. LMs are resolved lazily
 via get_lm() at invocation time so importing this module makes no API calls.
 """
 
-from typing import Any, cast
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
+
+# END is Any (langgraph has no stubs); alias to str so _route stays typed.
+_END: str = END
 from typing_extensions import TypedDict
 
 from ai_worker.dspy_engine import generate_email, qualify_lead
@@ -71,10 +74,10 @@ def _email_node(state: LeadProcessingState) -> dict[str, Any]:
 def _route(state: LeadProcessingState) -> str:
     """Return next node name: 'email' if qualified, END otherwise."""
     if state["error"] is not None:
-        return cast(str, END)
+        return _END
     verdict = state["verdict"]
     if verdict is None or not verdict.is_qualified:
-        return cast(str, END)
+        return _END
     return "email"
 
 
@@ -84,7 +87,7 @@ def _route(state: LeadProcessingState) -> str:
 
 
 def _build_graph() -> Any:
-    g: StateGraph = StateGraph(LeadProcessingState)
+    g: StateGraph[LeadProcessingState] = StateGraph(LeadProcessingState)
     g.add_node("qualify", _qualify_node)
     g.add_node("decide", _decide_node)
     g.add_node("email", _email_node)
