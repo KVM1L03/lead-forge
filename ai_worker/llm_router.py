@@ -17,10 +17,8 @@ _Role = Literal["qualifier", "email"]
 
 # LiteLLM-specific exceptions trigger fallback; everything else propagates immediately.
 try:
-    from litellm.exceptions import APIError as _LiteLLMAPIError  # type: ignore[import-untyped]
-    from litellm.exceptions import (
-        RateLimitError as _LiteLLMRateLimitError,  # type: ignore[import-untyped]
-    )
+    from litellm.exceptions import APIError as _LiteLLMAPIError
+    from litellm.exceptions import RateLimitError as _LiteLLMRateLimitError
 
     _DEFAULT_RETRYABLE: tuple[type[Exception], ...] = (
         _LiteLLMRateLimitError,
@@ -63,7 +61,7 @@ class _FallbackLM:
     """Wraps a chain of dspy.LM instances; tries each on retryable failure.
 
     ``Any`` in history / __call__ mirrors the untyped dspy.LM interface — dspy
-    has no stubs, so strict typing stops at the boundary (# type: ignore[attr-defined]).
+    has no stubs, so strict typing stops at the boundary.
     """
 
     def __init__(
@@ -78,12 +76,12 @@ class _FallbackLM:
 
     @property
     def model(self) -> str:
-        return str(self._chain[0].model)  # type: ignore[attr-defined]
+        return str(self._chain[0].model)
 
     @property
     def history(self) -> list[Any]:
         for lm in self._chain:
-            h: list[Any] = lm.history  # type: ignore[attr-defined]
+            h: list[Any] = lm.history
             if h:
                 return h
         return []
@@ -103,8 +101,8 @@ class _FallbackLM:
                 except self._retryable as exc:
                     if idx < len(self._chain) - 1:
                         _log_fallback(
-                            str(lm.model),  # type: ignore[attr-defined]
-                            str(self._chain[idx + 1].model),  # type: ignore[attr-defined]
+                            str(lm.model),
+                            str(self._chain[idx + 1].model),
                             exc,
                         )
                     raise
