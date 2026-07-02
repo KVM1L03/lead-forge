@@ -1,3 +1,9 @@
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { RunProgressView } from "@/components/RunProgressView";
+import { LeadCohortTable } from "@/components/LeadCohortTable";
+import type { Lead } from "@/lib/api";
+
 export default async function RunPage({
   params,
 }: {
@@ -5,14 +11,27 @@ export default async function RunPage({
 }) {
   const { id } = await params;
 
+  const run = await prisma.run.findUnique({ where: { id } });
+  if (!run) notFound();
+
+  const leads: Lead[] = run.leads_json ? (JSON.parse(run.leads_json) as Lead[]) : [];
+  const showCohorts = run.status === "completed" && leads.length > 0;
+
+  if (showCohorts) {
+    return <LeadCohortTable leads={leads} runId={id} />;
+  }
+
   return (
-    <section className="px-8 py-10">
-      <p className="font-mono font-medium text-[11px] uppercase tracking-[.18em] text-muted-fg mb-4">
-        Run
-      </p>
-      <h1 className="font-serif text-[28px] leading-[1.35] tracking-[-0.015em] text-fg">
-        {id}
-      </h1>
-    </section>
+    <RunProgressView
+      runId={id}
+      initialRun={{
+        status: run.status,
+        scraped: run.scraped,
+        qualified: run.qualified,
+        emails_generated: run.emails_generated,
+        limit: run.limit,
+        prompt: run.prompt,
+      }}
+    />
   );
 }
