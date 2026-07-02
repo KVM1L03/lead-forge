@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { deleteRun } from "@/app/actions";
@@ -22,6 +22,7 @@ export function RunRow({ run }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, startTransition] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
 
   const cfg = statusConfig(run.status);
   const rate = approvalRate(run.approvedCount, run.emailsGenerated);
@@ -126,7 +127,7 @@ export function RunRow({ run }: Props) {
         </td>
       </tr>
 
-      {createPortal(
+      {mounted && createPortal(
         <dialog
           ref={dialogRef}
           onClick={(e) => { if (e.target === dialogRef.current) dialogRef.current?.close(); }}
