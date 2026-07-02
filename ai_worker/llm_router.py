@@ -58,7 +58,7 @@ def _log_fallback(from_model: str, to_model: str, exc: Exception) -> None:
     print(json.dumps(record), file=sys.stderr, flush=True)
 
 
-class _FallbackLM(dspy.BaseLM):
+class _FallbackLM(dspy.BaseLM):  # type: ignore[misc]
     """Wraps a chain of dspy.LM instances; tries each on retryable failure.
 
     Extends dspy.BaseLM so dspy.Predict accepts it via isinstance check.
