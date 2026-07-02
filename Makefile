@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.n/bin:$(PATH)
 
-.PHONY: bootstrap install dev dev-api dev-frontend lint format typecheck test up-build up down logs logs-temporal logs-langfuse clean
+.PHONY: bootstrap install dev dev-api dev-frontend lint format typecheck test db-push frontend up-build up down logs logs-temporal logs-langfuse clean
 
 bootstrap: install
 	@[ -f .env ] || cp .env.example .env
@@ -17,7 +17,10 @@ dev-api:
 	@echo "not implemented yet"
 
 dev-frontend:
-	@echo "not implemented yet"
+	cd frontend && npm run dev
+
+frontend:
+	cd frontend && npm run dev
 
 lint:
 	uv run ruff check .
@@ -31,6 +34,11 @@ typecheck:
 
 test:
 	uv run pytest
+	cd frontend && node node_modules/.bin/vitest --run
+
+db-push:
+	cd frontend && npx prisma db push --accept-data-loss
+	cd frontend && npx prisma generate
 
 up-build:
 	docker compose up --build -d

@@ -2,8 +2,9 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["driverAdapters"]
 }
 
 // Connection URL is in prisma.config.ts (Prisma 7 — url no longer lives here).
@@ -12,21 +13,57 @@ datasource db {
   schemas  = ["app"]
 }
 
-// Mirrors shared/db.py RunRow — SQLAlchemy owns the DDL.
-// Keep columns in sync manually when the SQLAlchemy model changes.
+// ── Enums ──────────────────────────────────────────────────────────────────────
+
+enum Decision {
+  pending
+  approved
+  rejected
+
+  @@schema("app")
+}
+
+// ── Models ─────────────────────────────────────────────────────────────────────
+
+// Mirrors shared/db.py RunRow — SQLAlchemy owns DDL for existing columns.
+// Prisma adds: completed_at (new), leads relation (relational model).
 model Run {
-  id               String   @id @db.VarChar(36)
+  id               String    @id @default(cuid()) @db.VarChar(36)
   prompt           String
   target_query     String
   limit            Int
-  sender_context   String   @default("")
-  status           String   @db.VarChar(32)
-  created_at       DateTime
-  scraped          Int      @default(0)
-  qualified        Int      @default(0)
-  emails_generated Int      @default(0)
+  sender_context   String    @default("")
+  status           String    @db.VarChar(32)
+  scraped          Int       @default(0)
+  qualified        Int       @default(0)
+  emails_generated Int       @default(0)
   leads_json       String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  completedAt      DateTime? @map("completed_at")
+  leads            Lead[]
 
   @@map("runs")
+  @@schema("app")
+}
+
+model Lead {
+  id                   String    @id @default(cuid())
+  runId                String    @map("run_id")
+  placeId              String    @map("place_id")
+  name                 String
+  address              String
+  websiteUrl           String?   @map("website_url")
+  verdictScore         Float?    @map("verdict_score")
+  verdictReasoning     String?   @map("verdict_reasoning")
+  icpFit               Json?     @map("icp_fit")
+  emailSubject         String?   @map("email_subject")
+  emailBody            String?   @map("email_body")
+  personalizationHooks Json?     @map("personalization_hooks")
+  decision             Decision  @default(pending)
+  decidedAt            DateTime? @map("decided_at")
+  run                  Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, decision])
+  @@map("leads")
   @@schema("app")
 }
