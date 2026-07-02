@@ -15,3 +15,11 @@ development workflow.
 cp .env.example .env   # fill in your API keys
 make bootstrap
 ```
+
+## License
+
+Licensed under the PolyForm Noncommercial License 1.0.0.
+Free for noncommercial use, study, and modification.
+Commercial use requires a separate license — contact klabusit@gmail.com.
+
+© 2026 Kamil Labus
