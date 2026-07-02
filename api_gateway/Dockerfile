@@ -11,9 +11,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen
 
 COPY api_gateway/ ./api_gateway/
+COPY ai_worker/ ./ai_worker/
 COPY shared/ ./shared/
 
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

@@ -11,6 +11,7 @@ COPY maps_bridge/ ./maps_bridge/
 COPY shared/ ./shared/
 
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "maps_bridge/server.py"]
+CMD ["python", "-m", "maps_bridge.server"]
