@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { deleteRun } from "@/app/actions";
 import { approvalRate, formatRelativeTime, statusConfig } from "@/lib/runHistory";
@@ -21,6 +22,7 @@ export function RunRow({ run }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, startTransition] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
 
   const cfg = statusConfig(run.status);
   const rate = approvalRate(run.approvedCount, run.emailsGenerated);
@@ -125,36 +127,38 @@ export function RunRow({ run }: Props) {
         </td>
       </tr>
 
-      {/* Confirmation dialog */}
-      <dialog
-        ref={dialogRef}
-        onClick={(e) => { if (e.target === dialogRef.current) dialogRef.current?.close(); }}
-        className="rounded-[3px] border border-edge bg-surface p-0 shadow-xl backdrop:bg-black/30 w-[360px] open:flex open:flex-col"
-      >
-        <div className="px-6 pt-6 pb-4">
-          <p className="font-sans text-[15px] font-semibold text-fg mb-2">
-            Discard this run?
-          </p>
-          <p className="font-sans text-[13px] text-muted-fg leading-relaxed">
-            This will permanently delete the run and all associated leads. This
-            action cannot be undone.
-          </p>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-edge px-6 py-4">
-          <button
-            onClick={() => dialogRef.current?.close()}
-            className="rounded-[3px] border border-edge px-4 py-1.5 font-sans text-[12px] text-fg hover:bg-skeleton"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={confirmDelete}
-            className="rounded-[3px] bg-red-600 px-4 py-1.5 font-sans text-[12px] font-medium text-white hover:bg-red-700"
-          >
-            Delete
-          </button>
-        </div>
-      </dialog>
+      {mounted && createPortal(
+        <dialog
+          ref={dialogRef}
+          onClick={(e) => { if (e.target === dialogRef.current) dialogRef.current?.close(); }}
+          className="rounded-[3px] border border-edge bg-surface p-0 shadow-xl backdrop:bg-black/30 w-[360px] open:flex open:flex-col"
+        >
+          <div className="px-6 pt-6 pb-4">
+            <p className="font-sans text-[15px] font-semibold text-fg mb-2">
+              Discard this run?
+            </p>
+            <p className="font-sans text-[13px] text-muted-fg leading-relaxed">
+              This will permanently delete the run and all associated leads. This
+              action cannot be undone.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-edge px-6 py-4">
+            <button
+              onClick={() => dialogRef.current?.close()}
+              className="rounded-[3px] border border-edge px-4 py-1.5 font-sans text-[12px] text-fg hover:bg-skeleton"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDelete}
+              className="rounded-[3px] bg-red-600 px-4 py-1.5 font-sans text-[12px] font-medium text-white hover:bg-red-700"
+            >
+              Delete
+            </button>
+          </div>
+        </dialog>,
+        document.body,
+      )}
     </>
   );
 }
