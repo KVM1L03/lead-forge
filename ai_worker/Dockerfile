@@ -8,9 +8,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen
 
 COPY ai_worker/ ./ai_worker/
+COPY maps_bridge/ ./maps_bridge/
 COPY shared/ ./shared/
 
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "ai_worker/worker.py"]
+CMD ["python", "-m", "ai_worker.worker"]

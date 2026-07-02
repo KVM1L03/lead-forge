@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
 type HealthStatus = "healthy" | "unhealthy" | "unknown";
 
 function HealthDot({ status }: { status: HealthStatus }) {
@@ -34,7 +32,7 @@ export function Topbar() {
 
     async function check() {
       try {
-        const res = await fetch(`${API_BASE}/api/health`, {
+        const res = await fetch("/api/health", {
           signal: AbortSignal.timeout(3000),
         });
         if (!cancelled) setHealth(res.ok ? "healthy" : "unhealthy");

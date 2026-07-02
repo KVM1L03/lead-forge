@@ -40,6 +40,17 @@ x-langfuse-env: &langfuse-env
   LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD:-miniosecret}
   LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: "true"
 
+x-backend-env: &backend-env
+  TEMPORAL_ADDRESS: temporal:7233
+  APP_DATABASE_URL: postgresql+asyncpg://temporal:temporal@postgres:5432/temporal
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LANGFUSE_BASE_URL: http://langfuse:3000
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_DISABLED: ${LANGFUSE_DISABLED:-}
+  MAPS_PROVIDER: ${MAPS_PROVIDER:-mock}
+  SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -72,7 +83,7 @@ services:
       - lead-forge
 
   temporal:
-    image: temporalio/auto-setup:1.24
+    image: temporalio/auto-setup:1.24.2
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,7 +99,7 @@ services:
       - lead-forge
 
   temporal-ui:
-    image: temporalio/ui:2.30
+    image: temporalio/ui:2.30.3
     depends_on:
       - temporal
     environment:
@@ -100,12 +111,17 @@ services:
       - lead-forge
 
   temporal-admin-setup:
-    image: temporalio/admin-tools:1.24
+    image: temporalio/admin-tools:1.24.2-tctl-1.18.1-cli-1.0.0
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-    entrypoint: ["sh", "-c", "sleep 10 && tctl --ns default namespace register || true"]
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        "until tctl --address temporal:7233 namespace list >/dev/null 2>&1; do sleep 2; done; tctl --address temporal:7233 namespace describe default >/dev/null 2>&1 || tctl --address temporal:7233 --ns default namespace register",
+      ]
     restart: "no"
     networks:
       - lead-forge
@@ -165,7 +181,7 @@ services:
       start_period: 15s
 
   minio-setup:
-    image: minio/mc:RELEASE.2025-01-17T23-25-53Z
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
     depends_on:
       minio:
         condition: service_healthy
@@ -223,10 +239,12 @@ services:
       context: .
       dockerfile: api_gateway/Dockerfile
     depends_on:
-      - temporal
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
     environment:
-      TEMPORAL_ADDRESS: temporal:7233
-      LANGFUSE_BASE_URL: http://langfuse:3000
+      <<: *backend-env
     ports:
       - "8000:8000"
     healthcheck:
@@ -244,10 +262,12 @@ services:
       dockerfile: ai_worker/Dockerfile
     restart: on-failure
     depends_on:
-      - temporal
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
     environment:
-      TEMPORAL_ADDRESS: temporal:7233
-      LANGFUSE_BASE_URL: http://langfuse:3000
+      <<: *backend-env
     networks:
       - lead-forge
 
